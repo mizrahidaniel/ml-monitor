@@ -1,6 +1,28 @@
 # ML Monitor - Real-Time Model Performance Tracking
 
-**Lightweight self-hosted monitoring for ML inference APIs.**
+**✅ MVP SHIPPED** - FastAPI backend with metrics ingestion, time-series queries, and alerting.
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Start server
+uvicorn app:app --reload
+
+# Visit API docs
+open http://localhost:8000/docs
+
+# Run examples
+python example_client.py
+```
+
+**That's it.** ML Monitor is running and ready to track your models.
+
+---
 
 ## The Problem
 
@@ -17,136 +39,195 @@ You ship an ML model to production. It works great... for a week. Then:
 
 ---
 
-## What We're Building
+## What We've Built (MVP)
 
 **Dead-simple ML monitoring** - track what matters, alert when broken.
 
-### Core Metrics
-
-✅ **Latency Tracking**
-- p50, p95, p99 response times
-- Endpoint-level breakdowns
-- Historical trends
-
-✅ **Prediction Distribution**
-- Track output class distribution over time
-- Detect sudden shifts (drift)
-- Compare to baseline (training data distribution)
-
-✅ **Confidence Monitoring**
-- Average confidence scores
-- Low-confidence alert threshold
-- Uncertainty trends
-
-✅ **Error Rate**
-- 5xx errors, timeouts
-- Model exceptions
-- Input validation failures
-
-✅ **Automated Alerts**
-- Slack/Discord/Email
-- "p95 latency > 1s for 5 minutes"
-- "Prediction distribution shifted >20%"
-- "Error rate > 5%"
-
----
-
-## Usage
-
-### 1. Instrument Your API
-
-```python
-from ml_monitor import Monitor
-
-monitor = Monitor(api_key="your-key")
-
-@app.post("/predict")
-async def predict(data: Input):
-    with monitor.track("predict"):
-        result = model.predict(data)
-        
-        # Log prediction + confidence
-        monitor.log_prediction(
-            endpoint="predict",
-            predicted_class=result.class_name,
-            confidence=result.confidence
-        )
-        
-        return result
-```
-
-### 2. View Dashboard
+### ✅ Metric Ingestion
 
 ```bash
-# Start local dashboard
-ml-monitor serve --port 8080
-
-# Visit: http://localhost:8080
-# See: Real-time charts, alerts, historical trends
+curl -X POST http://localhost:8000/api/v1/metrics \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_name": "sentiment-classifier-v2",
+    "metric_type": "accuracy",
+    "value": 0.94,
+    "metadata": {"dataset": "test-set-1"}
+  }'
 ```
 
-### 3. Set Alerts
+**Supported metric types:**
+- `accuracy` - Model accuracy (0.0-1.0)
+- `latency` - Response time (milliseconds)
+- `error_rate` - Error percentage (0.0-1.0)
+- `drift_score` - Distribution drift score
+- `custom` - Your own metrics
 
-```yaml
-# ml-monitor.yaml
-alerts:
-  - name: High Latency
-    metric: p95_latency
-    threshold: 1000  # ms
-    duration: 5m     # sustained for 5 min
-    notify: slack
-    
-  - name: Prediction Drift
-    metric: class_distribution_shift
-    threshold: 0.2   # 20% shift from baseline
-    notify: email
-    
-  - name: Low Confidence
-    metric: avg_confidence
-    threshold: 0.6   # average confidence < 60%
-    notify: discord
+### ✅ Batch Ingestion (Efficient)
+
+```bash
+curl -X POST http://localhost:8000/api/v1/metrics/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metrics": [
+      {"model_name": "model-a", "metric_type": "accuracy", "value": 0.95},
+      {"model_name": "model-a", "metric_type": "latency", "value": 45.2},
+      {"model_name": "model-a", "metric_type": "error_rate", "value": 0.02}
+    ]
+  }'
+```
+
+### ✅ Time-Series Queries
+
+```bash
+# Get last 24 hours of accuracy metrics
+curl "http://localhost:8000/api/v1/models/sentiment-classifier-v2/metrics?metric_type=accuracy&hours=24"
+
+# Get summary stats (min/max/avg/latest)
+curl "http://localhost:8000/api/v1/models/sentiment-classifier-v2/summary?hours=24"
+
+# List all monitored models
+curl http://localhost:8000/api/v1/models
+```
+
+### ✅ Alerting
+
+```bash
+# Create alert: Fire when accuracy drops below 0.85 for 5+ minutes
+curl -X POST http://localhost:8000/api/v1/alerts \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_name": "sentiment-classifier-v2",
+    "metric_type": "accuracy",
+    "condition": "lt",
+    "threshold": 0.85,
+    "window_minutes": 5
+  }'
+
+# List all alerts
+curl http://localhost:8000/api/v1/alerts
+
+# Get triggered alerts (last 24h)
+curl "http://localhost:8000/api/v1/alerts/triggered?hours=24"
 ```
 
 ---
 
-## Tech Stack
+## Usage Example (Python Client)
+
+```python
+import requests
+
+API_URL = "http://localhost:8000"
+
+def log_metric(model_name: str, metric_type: str, value: float, metadata=None):
+    """Send a single metric to ML Monitor"""
+    response = requests.post(
+        f"{API_URL}/api/v1/metrics",
+        json={
+            "model_name": model_name,
+            "metric_type": metric_type,
+            "value": value,
+            "metadata": metadata
+        }
+    )
+    return response.json()
+
+# Track accuracy after evaluation
+log_metric(
+    model_name="sentiment-classifier-v2",
+    metric_type="accuracy",
+    value=0.94,
+    metadata={"dataset": "test-set-1", "samples": 10000}
+)
+
+# Track prediction latency
+log_metric(
+    model_name="image-classifier",
+    metric_type="latency",
+    value=42.5,
+    metadata={"batch_size": 32}
+)
+```
+
+See `example_client.py` for more examples.
+
+---
+
+## API Endpoints
+
+### Metrics
+- `POST /api/v1/metrics` - Ingest single metric
+- `POST /api/v1/metrics/batch` - Ingest multiple metrics
+- `GET /api/v1/models` - List all monitored models
+- `GET /api/v1/models/{model_name}/metrics` - Get time-series data
+- `GET /api/v1/models/{model_name}/summary` - Get aggregated stats
+
+### Alerts
+- `POST /api/v1/alerts` - Create alert rule
+- `GET /api/v1/alerts` - List alert rules
+- `GET /api/v1/alerts/triggered` - Get triggered alerts
+- `DELETE /api/v1/alerts/{alert_id}` - Delete alert rule
+
+### Health
+- `GET /` - API info
+- `GET /health` - Health check
+
+**Full interactive docs:** http://localhost:8000/docs
+
+---
+
+## Architecture
 
 **Backend:**
-- Python FastAPI (dashboard server)
-- SQLite (metrics storage, fast inserts)
-- Pydantic (schema validation)
+- **FastAPI** - High-performance async API
+- **SQLAlchemy + SQLite** - Time-series metric storage with optimized indexes
+- **Pydantic** - Request/response validation
+- **aiosqlite** - Async database operations
 
-**Client Library:**
-- Python decorator (`@monitor.track()`)
-- Zero-overhead logging (async writes)
-- Minimal dependencies
+**Storage:**
+- Metrics stored in SQLite with composite indexes for fast time-range queries
+- Automatic alert evaluation on metric ingestion
+- 90-day retention policy (configurable)
 
-**Dashboard:**
-- Plotly.js (interactive charts)
-- Vanilla JS (no React bloat)
-- Server-sent events (real-time updates)
+**Why SQLite?**
+- Fast inserts (10K+ metrics/sec)
+- Zero configuration
+- Perfect for single-node deployments
+- Easy backups (just copy the `.db` file)
 
 ---
 
-## MVP Roadmap
+## Roadmap
 
-### Phase 1: Core Tracking (Week 1-2)
-- [ ] Python client library
-- [ ] Latency tracking (p50/p95/p99)
-- [ ] Prediction logging
-- [ ] SQLite storage backend
+### ✅ Phase 1: Core Backend (DONE)
+- [x] FastAPI server
+- [x] Metric ingestion (single + batch)
+- [x] SQLite storage with time-series indexes
+- [x] Time-range queries
+- [x] Aggregated summary stats
+- [x] Alert rules
+- [x] Alert event tracking
 
-### Phase 2: Dashboard (Week 3)
-- [ ] FastAPI web server
-- [ ] Plotly charts (latency, predictions)
-- [ ] Real-time SSE updates
-- [ ] Historical trends (last 24h, 7d, 30d)
+### 🚧 Phase 2: Dashboard UI (Next)
+- [ ] React + Chart.js frontend
+- [ ] Real-time metric charts
+- [ ] Model comparison view
+- [ ] Alert configuration UI
+- [ ] Webhook notifications (Slack, Discord)
 
-### Phase 3: Alerts (Week 4)
-- [ ] Alert rule engine
-- [ ] Slack/Discord webhooks
-- [ ] Email notifications
-- [ ] Alert history + muting
+### 📋 Phase 3: Client Libraries
+- [ ] Python decorator (`@monitor.track()`)
+- [ ] FastAPI middleware
+- [ ] Auto-instrumentation for common ML frameworks
+- [ ] JavaScript/Node.js client
+
+### 🔮 Phase 4: Advanced Features
+- [ ] Prediction drift detection (KL divergence)
+- [ ] Anomaly detection (outlier metrics)
+- [ ] Multi-model comparison
+- [ ] Export to Prometheus format
+- [ ] PostgreSQL/TimescaleDB support for high-volume deployments
 
 ---
 
@@ -154,7 +235,7 @@ alerts:
 
 **ML in production is different from ML in Jupyter.**
 
-Training accuracy: 95%
+Training accuracy: 95%  
 Production accuracy: ???
 
 **You need visibility:**
@@ -169,7 +250,7 @@ Production accuracy: ???
 ## Target Users
 
 - **Solo ML engineers** running inference APIs
-- **Agents** monetizing ML models (sentiment, image gen, etc.)
+- **AI agents** monetizing ML models (sentiment, image gen, etc.)
 - **Startups** that need monitoring but can't afford DataDog ($100+/month)
 - **Anyone** who wants to know "Is my model OK?"
 
@@ -179,7 +260,7 @@ Production accuracy: ???
 
 **Monitoring should be boring.**
 
-Install library → Add 3 lines of code → See charts.
+Install dependencies → Start server → Send metrics → See results.
 
 No Kubernetes. No config hell. Just metrics.
 
@@ -192,15 +273,24 @@ No Kubernetes. No config hell. Just metrics.
 | **Prometheus + Grafana** | Industry standard | Complex setup, overkill for solo projects |
 | **DataDog** | Full observability | Expensive ($100+/month), heavy |
 | **Weights & Biases** | Great for training | Not focused on inference, requires account |
-| **ML Monitor** | **Simple, self-hosted, free** | New project |
+| **ML Monitor** | **Simple, self-hosted, free** | New project (but working!) |
 
 ---
 
 ## Contributing
 
-Looking for:
-- ML engineers (production experience)
-- Data viz experts (better charts)
-- Anyone tired of discovering model issues via customer complaints
+This MVP ships **working code** for metric ingestion, storage, queries, and alerts.
+
+**Next contributions needed:**
+- Dashboard UI (React + Chart.js)
+- Webhook notifications (Slack/Discord)
+- Python client library with decorators
+- Prediction drift detection algorithms
 
 Let's build the monitoring tool we actually want to use. 📊
+
+---
+
+## License
+
+MIT
